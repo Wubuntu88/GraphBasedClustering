@@ -2,17 +2,16 @@ import java.util.ArrayList;
 
 public class Driver1 {
 	public static void main(String[] args) throws Exception {
-		String inputFile = "Archive/file4";
-		String outputFile = "output4.txt";
+		String inputFile = "Archive/file2";
+		String outputFile = "output2.txt";
 		
-		final int NUMBER_OF_CENTROIDS = 3;
-		final double threshold = .3;
+		final double threshold = .1;
 		GBC_IO gbc_io = new GBC_IO();
 		GraphBasedClusterer gbc = gbc_io.instantiateKMeansClusterer(inputFile);
-		gbc.setParameters(NUMBER_OF_CENTROIDS, threshold, 92378);
+		gbc.setParameters(threshold);
+		gbc.cluster();
+		
+		System.out.println(String.format("%d Clusters", gbc.getNumberOfClusters()));
 		System.out.println(gbc);
-		//gbc.cluster();
-		
-		
 	}
 }
