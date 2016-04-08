@@ -1,17 +1,24 @@
 import java.util.List;
 
 public class Node {
-	List<Node> neighbors;
-	public List<Node> getNeighbors() {
+	private List<Integer> neighbors;
+	public List<Integer> getNeighbors() {
 		return neighbors;
 	}
-	int cluster; 
+	private int cluster; 
+	public void setCluster(int cluster) {
+		this.cluster = cluster;
+	}
+
 	public int getCluster() {
 		return cluster;
 	}
 
-	public Node(int cluster ,List<Node> list){
+	public Node(int cluster, List<Integer> list){
 		this.cluster = cluster;
 		this.neighbors = list;
+	}
+	public String toString(){
+		return String.format("Cluster: %d, Neighbors: %s", cluster, neighbors);
 	}
 }
