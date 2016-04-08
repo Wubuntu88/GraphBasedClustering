@@ -1,7 +1,11 @@
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
+import java.util.Set;
+import java.util.TreeSet;
 
 public class GraphBasedClusterer {
 	private ArrayList<Record> records;
@@ -12,48 +16,56 @@ public class GraphBasedClusterer {
 		}
 		return copy;
 	}
-	private int numberOfClusters;
+	private int numberOfClusters = -1;  //to be determined in assignClustersToAdjacencyList()
 	public int getNumberOfClusters() {
 		return numberOfClusters;
 	}
-	private long seed;
 	private boolean hasSetParameters = false;
 	private boolean hasPerformedClustering = false;
 	private HashMap<Integer, double[]> clusterCentroids;
+	/*
 	private int[] clustersThatRecordsBelongTo;
 	public int[] clustersThatRecordsBelongToCopy(){
 		return Arrays.copyOf(clustersThatRecordsBelongTo, clustersThatRecordsBelongTo.length);
 	}
+	*/
 	private double threshold;
-	
-	private int MAX_ITERATIONS = 10;
-	
+		
 	private double[][] distMatrix;
 	private List<Node> adjacencyList;
 	
 	public GraphBasedClusterer(ArrayList<Record> records) {
 		this.records = records;
-		this.numberOfClusters = 4;
-		this.seed = 43546903;
-		this.clustersThatRecordsBelongTo = new int[this.records.size()];
 		this.distMatrix = createDistanceMatrix(records);
 	}
 	
-	public boolean setParameters(int numberOfClusters, double threshold,int seed){
+	public boolean setParameters(double threshold){
 		if(hasSetParameters == false){
-			if(numberOfClusters > this.records.size()){
-				System.out.println("error: number of clusters cannot be greater than number of records.");
-				return false;
-			}
-			this.numberOfClusters = numberOfClusters;
 			this.threshold = threshold;
-			this.seed = seed;
-			this.clusterCentroids = new HashMap<>();
 			this.hasSetParameters = true;
 			return true;
 		}else{
 			System.out.println("error: you may only set the parameters once for an instance of this class.");
 			return false;
+		}
+	}
+	
+	public void cluster(){
+		if(hasSetParameters){
+			this.distMatrix = createDistanceMatrix(records);
+			this.adjacencyList = buildAdjacencyList(records, this.distMatrix);
+			/*
+			int index = 0;
+			for (Node node : adjacencyList) {
+				System.out.println(String.format("i: %d, node: %s", index, node.toString()));
+				index++;
+			}
+			*/
+			assignClustersToAdjacencyList(this.adjacencyList);
+			hasPerformedClustering = true;
+			this.clusterCentroids = computeCentroids();
+		}else{
+			System.out.println("Set parameters before performing clustering.");
 		}
 	}
 	
@@ -70,14 +82,49 @@ public class GraphBasedClusterer {
 		return distanceMatrix;
 	}
 	
-	private void cluster(){
-		
+	private void assignClustersToAdjacencyList(List<Node> adjacencyList){
+		Queue<Integer> queue = new LinkedList<>();
+		int cluster = 0;
+		for(int i = 0; i < adjacencyList.size(); i++){
+			if(adjacencyList.get(i).getCluster() < 0){//if it has not been visited (i.e. has a cluster)
+				queue.add(i);
+				while(queue.isEmpty() == false){//execute as long as the queue is not empty
+					/*
+					System.out.println(String.format("sizeOfQueue: %d", queue.size()));
+					if(queue.size() == 5){
+						System.exit(0);
+					}
+					*/
+					int index = queue.remove();
+					Node node = adjacencyList.get(index);
+					node.setCluster(cluster);
+					for(int neighbor: node.getNeighbors()){
+						if(adjacencyList.get(neighbor).getCluster() < 0){//if they have not been assigned yet
+							queue.add(neighbor);
+						}
+					}
+				}
+				cluster++;
+			}
+		}
+		this.numberOfClusters = cluster;
 	}
 	
 	private List<Node> buildAdjacencyList(ArrayList<Record> records, double[][] distanceMatrix){
 		List<Node> adjacencyList = new ArrayList<>();
 		for(int i = 0; i < records.size();i++){
-			
+			//find neighbors (i.e. records at indices) of node at i
+			List<Integer> neighbors = new ArrayList<>();
+			for(int j = 0; j < records.size(); j++){
+				if(i == j){//the same record is not a neighbor with itself, so we ignore that case
+					continue;
+				}
+				if(distanceMatrix[i][j] < this.threshold){
+					neighbors.add(j);
+				}
+			}
+			Node nodeToAdd = new Node(-1, neighbors);
+			adjacencyList.add(nodeToAdd);//-1 means no cluster yet
 		}
 		return adjacencyList;
 	}
@@ -92,18 +139,43 @@ public class GraphBasedClusterer {
 		return Math.sqrt(sum_sq_err);
 	}
 	
-	
+	private HashMap<Integer, double[]> computeCentroids(){
+		HashMap<Integer, double[]> centroids = new HashMap<>();
+		int[] quantityInCluster = new int[numberOfClusters];
+		//first I get the sum of the cluster, then divide by the mean.
+		for(int i = 0; i < this.adjacencyList.size(); i++){
+			double[] attr = records.get(i).getAttrList();
+			int cluster = adjacencyList.get(i).getCluster();
+			
+			if (centroids.containsKey(cluster) == false) {
+				double[] firstPoint = Arrays.copyOf(attr, attr.length);
+				centroids.put(cluster, firstPoint);
+			} else {//getting the sum of the points in a cluster
+				double[] developingCentroid = centroids.get(cluster);
+				for(int j = 0; j < developingCentroid.length;j++){
+					developingCentroid[j] += attr[j];
+				}
+			}
+			quantityInCluster[cluster]++;
+		}
+		
+		for(Integer cluster: centroids.keySet()){
+			double[] theCentroid = centroids.get(cluster);
+			for(int k = 0; k < theCentroid.length;k++){
+				theCentroid[k] /= quantityInCluster[cluster];
+			}
+		}
+		return centroids;
+	}
 	
 	public double sumSquaredError(){
 		double sum = 0.0;
-		int recordIndex = 0;
-		for (Record record : this.records) {
-			double[] attrs = record.getAttrList();
-			int clusterOfRecord = clustersThatRecordsBelongTo[recordIndex];
+		for (int i = 0; i < this.adjacencyList.size(); i++) {
+			double[] attrs = records.get(i).getAttrList();
+			int clusterOfRecord = adjacencyList.get(i).getCluster();
 			double[] centroid = clusterCentroids.get(clusterOfRecord);
 			double dist = euclideanDistance(attrs, centroid);
 			sum += Math.pow(dist, 2);
-			recordIndex++;
 		}
 		return sum;
 	}
@@ -111,10 +183,10 @@ public class GraphBasedClusterer {
 	public String toString(){
 		StringBuffer sb = new StringBuffer("");
 		
-		for(int i = 0; i < numberOfClusters;i++){
-			sb.append(String.format("Cluster %d\n", i));
+		for(int cluster = 0; cluster < numberOfClusters;cluster++){
+			sb.append(String.format("Cluster %d\n", cluster));
 			for(int k = 0; k < records.size(); k++){
-				if (clustersThatRecordsBelongTo[k] == i) {
+				if (adjacencyList.get(k).getCluster() == cluster) {
 					sb.append(String.format("%s\n", records.get(k).toString()));
 				}
 			}
@@ -122,6 +194,7 @@ public class GraphBasedClusterer {
 		sb.replace(sb.length() - 1, sb.length(), "");
 		return sb.toString();
 	}
+	
 }
 
 
