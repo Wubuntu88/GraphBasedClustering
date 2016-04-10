@@ -1,3 +1,4 @@
+import java.util.ArrayList;
 import java.util.List;
 
 public class Node {
@@ -18,6 +19,12 @@ public class Node {
 		this.cluster = cluster;
 		this.neighbors = list;
 	}
+	
+	public Node(Node node){
+		this.neighbors = new ArrayList<>(node.getNeighbors());
+		this.cluster = node.getCluster();
+	}
+	
 	public String toString(){
 		return String.format("Cluster: %d, Neighbors: %s", cluster, neighbors);
 	}
